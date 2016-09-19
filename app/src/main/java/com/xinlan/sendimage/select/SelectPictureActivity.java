@@ -34,7 +34,6 @@ public class SelectPictureActivity extends AppCompatActivity {
     @Override
     protected void onCreate(final Bundle b) {
         super.onCreate(b);
-        checkInitImageLoader();
         // Create new fragment and transaction
         Fragment newFragment = new BucketsFragment();
         FragmentTransaction transaction = getSupportFragmentManager()
@@ -69,42 +68,5 @@ public class SelectPictureActivity extends AppCompatActivity {
         result.putExtra("imageSize", imageSize);
         setResult(RESULT_OK, result);
         finish();
-    }
-
-    /**
-     * 检测图片载入框架是否导入  若没有 则导入并初始化
-     */
-    protected void checkInitImageLoader() {
-        if (!ImageLoader.getInstance().isInited()) {
-            initImageLoader();
-        }//end if
-    }
-
-    /**
-     * 初始化图片载入框架
-     */
-    private void initImageLoader() {
-        File cacheDir = StorageUtils.getCacheDirectory(this);
-        int MAXMEMONRY = (int) (Runtime.getRuntime().maxMemory());
-        // System.out.println("dsa-->"+MAXMEMONRY+"   "+(MAXMEMONRY/5));//.memoryCache(new
-        // LruMemoryCache(50 * 1024 * 1024))
-        DisplayImageOptions defaultOptions = new DisplayImageOptions.Builder()
-                .cacheInMemory(true)
-                .cacheOnDisk(true)
-                .build();
-        ImageLoaderConfiguration config = new ImageLoaderConfiguration.Builder(
-                this).memoryCacheExtraOptions(480, 800).defaultDisplayImageOptions(defaultOptions)
-                .diskCacheExtraOptions(480, 800, null).threadPoolSize(3)
-                .threadPriority(Thread.NORM_PRIORITY - 2)
-                .tasksProcessingOrder(QueueProcessingType.FIFO)
-                .denyCacheImageMultipleSizesInMemory()
-                .memoryCache(new LruMemoryCache(MAXMEMONRY / 5))
-                .diskCache(new UnlimitedDiskCache(cacheDir))
-                .diskCacheFileNameGenerator(new HashCodeFileNameGenerator()) // default
-                .imageDownloader(new BaseImageDownloader(this)) // default
-                .imageDecoder(new BaseImageDecoder(false)) // default
-                .defaultDisplayImageOptions(DisplayImageOptions.createSimple()).build();
-
-        ImageLoader.getInstance().init(config);
     }
 }

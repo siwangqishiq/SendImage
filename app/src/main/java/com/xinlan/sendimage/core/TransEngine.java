@@ -1,5 +1,7 @@
 package com.xinlan.sendimage.core;
 
+import android.widget.TextView;
+
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 
@@ -37,42 +39,61 @@ public class TransEngine {
     private int mStatus = STATUS_IDLE;
 
     private String mSendToHost;
-    private int mSendToHostPort = 8964;
 
-    public static synchronized TransEngine getInstance() {
+    private DatagramSocket socket = null;
+
+    private TextView mStatusView;
+
+    private static Object lock = new Object();
+    public static TransEngine getInstance() {
         if (mInstance == null) {
-            mInstance = new TransEngine();
+            synchronized (lock){
+                mInstance = new TransEngine();
+            }
         }
         return mInstance;
     }
 
+    public void setStatusView(TextView view) {
+        this.mStatusView = view;
+    }
 
-    public void addTask(final String path,final String address) throws RuntimeException{
-        if(mStatus != STATUS_IDLE){
+
+    public void addTask(final String path, final String address) throws RuntimeException {
+        if (mStatus != STATUS_IDLE) {
             throw new RuntimeException("error 当前正在发送...");
         }
 
         this.mSendToHost = address;
 
-        DatagramSocket socket = null;
         try {
             this.mStatus = STATUS_ANALYSIS;
             socket = new DatagramSocket(RECEIVE_PORT);
-            InetAddress serverAddress = InetAddress.getByName(mSendToHost);
+            Pack preSendPack = Pack.createPrePackage(new File(path));
+            Map<Integer, Pack> packs = parseFile(new File(path), preSendPack);
 
-            Pack preSendPck = Pack.createPrePackage(new File(path));
-            String preSendJson = JSON.toJSONString(preSendPck);
-
-            Map<Integer,Pack> packs = parseFile(new File(path));
-            byte data[] = preSendJson.getBytes();
-            DatagramPacket pck = new DatagramPacket (data , data.length ,
-                    serverAddress , SEND_TO_PORT);
-            socket.send(pck);
-
-            //receve ask
-            
+            //send init pack
+            sendPack(socket, preSendPack, mSendToHost, SEND_TO_PORT);
 
             this.mStatus = STATUS_SENDING;
+            Pack receivePack = receivePack(socket, false);
+            while (receivePack != null && receivePack.getType() != Pack.TYPE_END) {
+                System.out.println("packet = " + JSON.toJSONString(receivePack));
+                if (receivePack.getType() == Pack.TYPE_ASK) {
+                    //TODO send binary data
+                    Pack sendPack = packs.get(receivePack.getUid());
+                    //sendPack.setData(null);
+                    sendPack(socket, sendPack, mSendToHost, SEND_TO_PORT);
+                    updateStatusView("发送数据包" + sendPack.getUid()+"  总量 = "+sendPack.getTrunkNum());
+                    receivePack = receivePack(socket, false);
+                }
+            }//end while
+
+            if (receivePack.getType() == Pack.TYPE_END) {
+                updateStatusView("图片发送成功!");
+            }
+            //receive ask or end
+            //Pack askPack = receivePack(socket, false);
 
             socket.close();
         } catch (SocketException e) {
@@ -84,27 +105,23 @@ public class TransEngine {
         } catch (IOException e) {
             e.printStackTrace();
             handleOnException();
-        }catch ( Exception e){
+        } catch (Exception e) {
             handleOnException();
         }
-
         this.mStatus = STATUS_IDLE;
     }
 
-    private void handleOnException(){
+    private void handleOnException() {
         this.mStatus = STATUS_IDLE;
+        if (socket != null) {
+            socket.close();
+        }
     }
 
-    private String receiveData(Socket socket){
-
-        return "";
-    }
-
-    protected Map<Integer,Pack> parseFile(final File file){
-        Map<Integer,Pack> packs = new HashMap<Integer,Pack>();
+    protected Map<Integer, Pack> parseFile(final File file, Pack preSendPack) {
+        Map<Integer, Pack> packs = new HashMap<Integer, Pack>();
 
         InputStream in = null;
-
         try {
             //System.out.println("以字节为单位读取文件内容，一次读多个字节：");
             // 一次读多个字节
@@ -114,11 +131,12 @@ public class TransEngine {
             // 读入多个字节到字节数组中，byteread为一次读入的字节数
             int uid_index = 1;
             while ((byteread = in.read(tempbytes)) != -1) {
-                System.out.write(tempbytes, 0, byteread);
-                Pack p = Pack.createDataPackage(uid_index,tempbytes);
-                packs.put(uid_index,p);
+                //System.out.write(tempbytes, 0, byteread);
+                Pack p = Pack.createDataPackage(uid_index, preSendPack.getTrunkNum(), tempbytes);
+                packs.put(uid_index, p);
                 uid_index++;
             }
+            //System.out.println("uid_index = " + uid_index);
         } catch (Exception e1) {
             e1.printStackTrace();
         } finally {
@@ -131,5 +149,40 @@ public class TransEngine {
         }
 
         return packs;
+    }
+
+    public void updateStatusView(final String text) {
+        if (mStatusView != null) {
+            mStatusView.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (mStatusView != null) {
+                        mStatusView.setText(text);
+                    }
+                }
+            });
+        }
+    }
+
+    public static void sendPack(DatagramSocket socket, Pack pack, String toAddress, int sendToPort) throws IOException {
+        String json = JSON.toJSONString(pack);
+        byte data[] = json.getBytes();
+        DatagramPacket pck = new DatagramPacket(data, data.length,
+                InetAddress.getByName(toAddress), sendToPort);
+        socket.send(pck);
+    }
+
+    public static Pack receivePack(DatagramSocket socket, boolean appendDatagram) throws IOException {
+        byte[] inServer = new byte[Pack.TRUNK_SIZE + 1024];
+        //receive pkt
+        DatagramPacket rcvPkt = new DatagramPacket(inServer, inServer.length);
+        socket.receive(rcvPkt);
+
+        String receiveTemp = new String(rcvPkt.getData(), 0, rcvPkt.getLength());
+        Pack pck = JSON.parseObject(receiveTemp, Pack.class);
+        if (appendDatagram) {
+            pck.setDatagramPacket(rcvPkt);
+        }
+        return pck;
     }
 }//end class

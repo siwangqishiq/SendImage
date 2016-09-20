@@ -31,6 +31,7 @@ public class TransEngine {
     public static final int RECEIVE_PORT = 8965;
 
     public static final int SOCKET_TIME_OUT = 10 * 1000;
+    public static final int SEND_SOCKET_TIME_OUT = 60 * 1000;
 
     private static final int STATUS_IDLE = 0;//空闲状态
     private static final int STATUS_ANALYSIS = 1;//文件解析中...
@@ -74,9 +75,7 @@ public class TransEngine {
     }
 
     public void addTask(final String path, final String address) throws RuntimeException {
-        if (threadPool == null) {
-            threadPool = Executors.newFixedThreadPool(2);
-        }
+        checkThreadPoolInit();
         threadPool.execute(new Runnable() {
             @Override
             public void run() {
@@ -94,8 +93,9 @@ public class TransEngine {
 
         try {
             this.mStatus = STATUS_ANALYSIS;
+            updateStatusView("解析文件中...");
             socket = new DatagramSocket(RECEIVE_PORT);
-            socket.setSoTimeout(SOCKET_TIME_OUT);
+            socket.setSoTimeout(SEND_SOCKET_TIME_OUT);
             Pack preSendPack = Pack.createPrePackage(new File(path));
             Map<Integer, Pack> packs = parseFile(new File(path), preSendPack);
 
@@ -185,9 +185,7 @@ public class TransEngine {
      */
     public void startReceiveTask() {
         //启动一个接收消息的线程
-        if (threadPool == null) {
-            threadPool = Executors.newFixedThreadPool(2);
-        }
+        checkThreadPoolInit();
 
         mReceiveTaskIsRuning = true;
         threadPool.execute(new Runnable() {
@@ -224,22 +222,38 @@ public class TransEngine {
                 uid++;
 
                 pack.setDatagramPacket(null);
-                System.out.println(JSON.toJSONString(pack));
-
-
+                //System.out.println(JSON.toJSONString(pack));
                 final String filepath = getInnerSDCardPath() + File.separator + pack.getFilename();
 
                 fos = new FileOutputStream(filepath);
 
-                for (; uid <= pack.getTrunkNum(); uid++) {
+                while (uid <= pack.getTrunkNum()) {
                     Pack askPack = Pack.createAskPackage(uid);
+                    System.out.println("请求 = " + askPack.getUid());
                     TransEngine.sendPack(socket, askPack, toAddress, port);
 
-                    Pack dataPack = TransEngine.receivePack(socket, false);
-                    //System.out.println("received = " + " uid = " + dataPack.getUid() + "  trunkNum = " + dataPack.getTrunkNum());
-                    updateStatusView("接收数据包 = " + dataPack.getUid() + "  " + dataPack.getType() + " " + dataPack.getData());
-                    fos.write(dataPack.getData());
-                }//end for uid
+                    Pack dataPack = null;
+                    try {
+                        System.out.println("接收包 = " + askPack.getUid());
+                        dataPack = TransEngine.receivePack(socket, false);
+                    } catch (IOException e) {
+                        updateStatusView("ERROR 包丢失 " + askPack.getUid());
+                        continue;
+                        //break;
+                    }
+
+                    if (dataPack != null) {
+                        //System.out.println("received = " + " uid = " + dataPack.getUid() + "  trunkNum = " + dataPack.getTrunkNum());
+                        StringBuffer sb = new StringBuffer("接收数据包 = ");
+                        sb.append(dataPack.getUid()).append("/").append(dataPack.getTrunkNum()).append("  ");
+                        updateStatusView(sb.toString());
+
+                        fos.write(dataPack.getData());
+
+                        uid++;
+                    }
+
+                }//end while
 
                 if (uid > pack.getTrunkNum()) {
                     Pack endPack = Pack.createEndPackage();
@@ -332,6 +346,12 @@ public class TransEngine {
 
     public void setStatusView(TextView view) {
         this.mStatusView = view;
+    }
+
+    private void checkThreadPoolInit() {
+        if (threadPool == null || threadPool.isShutdown() || threadPool.isTerminated()) {
+            threadPool = Executors.newFixedThreadPool(2);
+        }
     }
 
 }//end class

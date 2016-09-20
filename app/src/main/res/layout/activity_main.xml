@@ -1,41 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical">
+              xmlns:tools="http://schemas.android.com/tools"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical">
 
     <EditText
         android:id="@+id/ip_address"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="10.242.86.5" />
+        android:hint="填发送到的IP"
+        android:text=""/>
 
     <Button
         android:id="@+id/select_btn"
-        android:text="选择发送图片"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        />
+        android:text="选择发送图片"
+    />
 
     <Button
         android:id="@+id/send_btn"
-        android:text="发送"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        />
+        android:text="发送"
+    />
 
     <TextView
         android:id="@+id/status_text"
-        android:text="状态:idle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        />
+        android:text="状态:idle"
+    />
 
     <ImageView
         android:id="@+id/image_view"
         android:layout_width="300dp"
         android:layout_height="300dp"
         android:scaleType="centerCrop"
-        />
+    />
 </LinearLayout>

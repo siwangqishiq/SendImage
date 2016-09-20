@@ -45,9 +45,10 @@ public class TransEngine {
     private TextView mStatusView;
 
     private static Object lock = new Object();
+
     public static TransEngine getInstance() {
         if (mInstance == null) {
-            synchronized (lock){
+            synchronized (lock) {
                 mInstance = new TransEngine();
             }
         }
@@ -78,13 +79,13 @@ public class TransEngine {
             this.mStatus = STATUS_SENDING;
             Pack receivePack = receivePack(socket, false);
             while (receivePack != null && receivePack.getType() != Pack.TYPE_END) {
-                System.out.println("packet = " + JSON.toJSONString(receivePack));
+                //System.out.println("packet = " + JSON.toJSONString(receivePack));
                 if (receivePack.getType() == Pack.TYPE_ASK) {
                     //TODO send binary data
                     Pack sendPack = packs.get(receivePack.getUid());
                     //sendPack.setData(null);
                     sendPack(socket, sendPack, mSendToHost, SEND_TO_PORT);
-                    updateStatusView("发送数据包" + sendPack.getUid()+"  总量 = "+sendPack.getTrunkNum());
+                    updateStatusView("发送数据包" + sendPack.getUid() + "  总量 = " + sendPack.getTrunkNum());
                     receivePack = receivePack(socket, false);
                 }
             }//end while
@@ -125,14 +126,16 @@ public class TransEngine {
         try {
             //System.out.println("以字节为单位读取文件内容，一次读多个字节：");
             // 一次读多个字节
-            byte[] tempbytes = new byte[Pack.TRUNK_SIZE];
+            byte[] buffer = new byte[Pack.TRUNK_SIZE];
             int byteread = 0;
-            in = new FileInputStream(file);
+             in = new FileInputStream(file);
             // 读入多个字节到字节数组中，byteread为一次读入的字节数
             int uid_index = 1;
-            while ((byteread = in.read(tempbytes)) != -1) {
+            while ((byteread = in.read(buffer)) != -1) {
                 //System.out.write(tempbytes, 0, byteread);
-                Pack p = Pack.createDataPackage(uid_index, preSendPack.getTrunkNum(), tempbytes);
+                byte[] b = new byte[byteread];
+                System.arraycopy(buffer, 0, b, 0, b.length);
+                Pack p = Pack.createDataPackage(uid_index, preSendPack.getTrunkNum(), b);
                 packs.put(uid_index, p);
                 uid_index++;
             }

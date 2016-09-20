@@ -13,7 +13,7 @@ public class Pack {
     public static final int TYPE_END = 4;
     public static final int TYPE_ERROR = 5;
 
-    public static final int TRUNK_SIZE = 2 * 1024;
+    public static final int TRUNK_SIZE = 1  * 1024;//不能大于16 * 1024   UDP报文最大长度限制64K
 
     private int type;
     private long filesize;
